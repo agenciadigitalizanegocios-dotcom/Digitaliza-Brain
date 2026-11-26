@@ -13,7 +13,7 @@ class Tenant extends Model
 
     public const SUSPENDED = 'suspenso';
 
-    protected $fillable = ['name', 'slug', 'status', 'plan', 'template_id', 'template_version', 'modules'];
+    protected $fillable = ['name', 'slug', 'status', 'plan', 'template_id', 'template_version', 'modules', 'vitrine'];
 
     protected $hidden = ['api_token_hash'];
 
@@ -21,6 +21,7 @@ class Tenant extends Model
     {
         return [
             'modules' => 'array',
+            'vitrine' => 'array',
             'template_version' => 'integer',
         ];
     }
@@ -59,6 +60,34 @@ class Tenant extends Model
         return $this->status === self::ACTIVE;
     }
 
+    /** A vitrine pública só existe com o módulo Catálogo ligado e o cliente ativo. */
+    public function hasVitrine(): bool
+    {
+        return $this->isActive() && $this->moduleFlags()['catalogo'];
+    }
+
+    /** Endereço público da vitrine (ou de um produto). */
+    public function vitrineUrl(?string $productSlug = null): string
+    {
+        $host = config('cerebro.vitrine_host');
+        $base = $host
+            ? rtrim((str_contains($host, '://') ? '' : 'https://').$host, '/').'/'.$this->slug
+            : rtrim(config('app.url'), '/').'/v/'.$this->slug;
+
+        return $productSlug ? $base.'/'.$productSlug : $base;
+    }
+
+    /** Configuração visual da vitrine, com padrões. */
+    public function vitrineSettings(): array
+    {
+        return array_merge([
+            'color' => '#4f46e5', 'logo' => null, 'about' => '', 'phone' => '', 'whatsapp' => '',
+            'email' => '', 'address' => '', 'instagram' => '',
+            // Vitrine nova nasce fora do Google até o cliente aprovar.
+            'building' => true,
+        ], $this->vitrine ?? []);
+    }
+
     /** Gera um token novo para o n8n. Devolve o token em texto (só aparece uma vez). */
     public function generateApiToken(): string
     {
@@ -84,6 +113,10 @@ class Tenant extends Model
     public static function uniqueSlug(string $name): string
     {
         $base = Str::slug($name) ?: 'cliente';
+        // Nomes que viram caminho na vitrine e não podem colidir com rotas do sistema.
+        if (in_array($base, ['v', 'api', 'admin', 'login', 'logout', 'cerebro', 'storage', 'css', 'js', 'up', 'robots-txt', 'favicon-ico'], true)) {
+            $base .= '-cliente';
+        }
         $slug = $base;
         $i = 2;
 

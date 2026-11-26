@@ -24,6 +24,9 @@ final class Audit
         'modelo' => 'Alterou modelo',
         'atualizacao_aplicada' => 'Aplicou atualização do modelo',
         'atualizacao_dispensada' => 'Dispensou atualização do modelo',
+        'catalogo_tipo' => 'Alterou tipo de produto do catálogo',
+        'produto' => 'Mexeu num produto do catálogo',
+        'vitrine' => 'Alterou a vitrine',
     ];
 
     public static function log(string $action, ?int $tenantId = null, array $details = []): void

@@ -93,6 +93,10 @@ Artisan::command('cerebro:limpar-imagens {--apagar}', function () {
     BrainSetting::withoutGlobalScopes()->each(fn ($s) => $collect($s->data ?? []));
     BrainItem::withoutGlobalScopes()->each(fn ($i) => $collect($i->data ?? []));
     BrainVersion::withoutGlobalScopes()->each(fn ($v) => $collect([$v->snapshot['settings'] ?? [], $v->snapshot['items'] ?? []]));
+    // Catálogo: fotos da galeria, campos de imagem dos produtos e logo da vitrine.
+    \App\Models\ProductImage::withoutGlobalScopes()->pluck('path')->each(fn ($p) => $collect($p));
+    \App\Models\Product::withoutGlobalScopes()->each(fn ($p) => $collect($p->data ?? []));
+    Tenant::query()->each(fn ($t) => $collect($t->vitrine ?? []));
 
     $disk = Storage::disk('public');
     $unused = array_values(array_filter($disk->allFiles('tenants'), fn ($f) => ! isset($used[$f])));
@@ -111,3 +115,58 @@ Artisan::command('cerebro:limpar-imagens {--apagar}', function () {
     }
     $this->info(count($unused).' imagem(ns) '.($this->option('apagar') ? 'apagada(s).' : 'sem uso. Rode com --apagar para apagar.'));
 })->purpose('Lista (ou apaga com --apagar) imagens que nenhuma versão usa');
+
+/*
+ | Importa produtos de uma API JSON (ex.: o site de imóveis atual).
+ |   php artisan cerebro:importar bs-imoveis http://imoveis:3000/api/v1/imoveis --token=XXX --dry-run
+ | Sem --dry-run, grava. Rodar de novo atualiza pelo id de origem (não duplica).
+ | --mapa=caminho.json troca os nomes dos campos (veja App\Catalog\ProductImporter::DEFAULT_MAP).
+ */
+Artisan::command('cerebro:importar {cliente} {url} {--token=} {--tipo=imovel} {--mapa=} {--dry-run} {--fotos-de-novo}', function (string $cliente, string $url) {
+    $tenant = Tenant::where('slug', $cliente)->first();
+    if (! $tenant) {
+        $this->error("Cliente “{$cliente}” não encontrado (use o slug, ex.: bs-imoveis).");
+
+        return 1;
+    }
+    app(CurrentTenant::class)->set($tenant);
+    $type = \App\Models\ProductType::where('key', $this->option('tipo'))->first();
+    if (! $type) {
+        $this->error("O cliente não tem o tipo de produto “{$this->option('tipo')}”.");
+
+        return 1;
+    }
+
+    $map = [];
+    if ($this->option('mapa')) {
+        $map = json_decode((string) file_get_contents($this->option('mapa')), true);
+        if (! is_array($map)) {
+            $this->error('Mapa inválido (precisa ser JSON).');
+
+            return 1;
+        }
+    }
+
+    $importer = new \App\Catalog\ProductImporter($tenant, $type, $url, $this->option('token'), $map);
+    $items = $importer->fetch();
+    $this->info(count($items).' item(ns) encontrados na API.');
+
+    if ($this->option('dry-run')) {
+        if ($items) {
+            $this->line('Campos do 1º item na API: '.implode(', ', array_keys((array) $items[0])));
+        }
+        foreach (array_slice($items, 0, 3) as $i => $item) {
+            $this->line("\n— Item ".($i + 1).' convertido:');
+            $this->line(json_encode($importer->mapItem((array) $item), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        }
+        $this->warn("\nNada foi gravado (--dry-run). Confira e rode sem --dry-run.");
+
+        return 0;
+    }
+
+    $report = $importer->import($items, (bool) $this->option('fotos-de-novo'));
+    $this->info("Criados: {$report['criados']} · Atualizados: {$report['atualizados']} · Pulados: {$report['pulados']} · Fotos: {$report['fotos']}");
+    foreach (array_slice($report['avisos'], 0, 30) as $aviso) {
+        $this->warn($aviso);
+    }
+})->purpose('Importa produtos de uma API JSON para o catálogo de um cliente');

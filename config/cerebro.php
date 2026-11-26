@@ -11,6 +11,10 @@ return [
     // Pedidos que chegam pelo Cloudflare (têm o cabeçalho Cf-Connecting-Ip) são recusados.
     'api_allow_public' => (bool) env('API_ALLOW_PUBLIC', false),
 
+    // Endereço da vitrine pública. Com VITRINE_HOST (ex.: vitrine.digitalizanegocio.com.br), cada
+    // cliente fica em https://vitrine.../{slug}. Sem ele, em {APP_URL}/v/{slug}.
+    'vitrine_host' => env('VITRINE_HOST'),
+
     'limits' => [
         // Itens por aba de lista.
         'items_per_tab' => (int) env('CEREBRO_MAX_ITENS_POR_ABA', 200),
