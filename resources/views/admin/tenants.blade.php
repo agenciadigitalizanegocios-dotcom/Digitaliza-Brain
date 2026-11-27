@@ -62,6 +62,7 @@
                                     <button class="btn small primary">Abrir cérebro</button>
                                 </form>
                                 <a class="btn small ghost" href="{{ route('admin.structure.show', ['clientes', $tenant->id]) }}">Estrutura</a>
+                                <a class="btn small ghost" href="{{ route('admin.catalog.show', $tenant) }}">Catálogo</a>
                                 <button type="button" class="btn small ghost" data-open-dialog="#mod-{{ $tenant->id }}">Módulos</button>
                                 <form method="post" action="{{ route('admin.tenants.token', $tenant) }}"
                                       data-confirm="Gerar um token novo para {{ $tenant->name }}? O token atual para de funcionar e você precisa trocar no n8n.">

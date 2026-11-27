@@ -473,5 +473,6 @@
         "Use só as informações acima.",
         "Se não souber algo, diga que vai confirmar com a equipe. Nunca invente."
     ],
-    "starter_items": []
+    "starter_items": [],
+    "catalog_types": []
 }

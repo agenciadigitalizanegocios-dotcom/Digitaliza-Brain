@@ -16,6 +16,7 @@ final class Audit
         'cliente_criado' => 'Criou cliente',
         'cliente_aberto' => 'Abriu o cérebro do cliente',
         'token_gerado' => 'Gerou token novo do n8n',
+        'senha_trocada' => 'Trocou a senha de um usuário (pelo terminal)',
         'cliente_suspenso' => 'Suspendeu cliente',
         'cliente_reativado' => 'Reativou cliente',
         'modulos' => 'Alterou módulos',
@@ -24,6 +25,9 @@ final class Audit
         'modelo' => 'Alterou modelo',
         'atualizacao_aplicada' => 'Aplicou atualização do modelo',
         'atualizacao_dispensada' => 'Dispensou atualização do modelo',
+        'catalogo_tipo' => 'Alterou tipo de produto do catálogo',
+        'produto' => 'Mexeu num produto do catálogo',
+        'vitrine' => 'Alterou a vitrine',
     ];
 
     public static function log(string $action, ?int $tenantId = null, array $details = []): void

@@ -24,6 +24,17 @@
             </a>
         @endforeach
 
+        @if (isset($currentTenant) && $currentTenant->moduleFlags()['catalogo'])
+            <a href="{{ route('products.index') }}" class="navitem {{ ($active ?? null) === 'produtos' ? 'active' : '' }} sep">
+                <span class="navicon">🛍️</span>
+                <span class="navlabel">Produtos</span>
+            </a>
+            <a href="{{ route('vitrine.settings') }}" class="navitem {{ ($active ?? null) === 'vitrine' ? 'active' : '' }}">
+                <span class="navicon">🎨</span>
+                <span class="navlabel">Vitrine</span>
+            </a>
+        @endif
+
         <a href="{{ route('brain.versions.index') }}" class="navitem {{ ($active ?? null) === 'versoes' ? 'active' : '' }} sep">
             <span class="navicon">🕘</span>
             <span class="navlabel">Histórico de versões</span>

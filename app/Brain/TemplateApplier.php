@@ -55,6 +55,9 @@ final class TemplateApplier
             }
         });
 
+        // Tipos de produto do modelo (Imóvel...), só se o cliente ainda não tiver nenhum.
+        \App\Catalog\Catalog::provision($tenant, $structure);
+
         Structure::forget($tenant->id);
     }
 
