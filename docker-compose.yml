@@ -1,0 +1,64 @@
+# Cérebro do Robô — só esta aplicação.
+#
+# Ele NÃO abre porta no servidor. Quem fala com ele são o cloudflared (túnel) e o n8n, que
+# já rodam no outro docker-compose (o da Digitaliza). Por isso este compose entra na mesma
+# rede Docker deles, como rede "externa".
+#
+# Primeira vez:
+#   1. Descubra o nome da rede do compose da Digitaliza:   docker network ls
+#      (normalmente "<pasta>_default", ex.: digitaliza_default) e coloque em REDE_DIGITALIZA no .env
+#   2. cp .env.example .env   e ajuste (veja o README, seção Docker)
+#   3. docker compose up -d --build
+#   4. docker compose exec cerebro php artisan key:generate --show   → cole no APP_KEY do .env
+#      docker compose up -d   (para recarregar o .env)
+#   5. docker compose exec cerebro php artisan db:seed --force   (cria o admin; só na primeira vez)
+#
+# No painel do túnel (Cloudflare), o hostname público aponta para:  http://cerebro:8000
+# No n8n, o nó HTTP Request chama:                                  http://cerebro:8000/api/v1/brain
+
+name: cerebro
+
+services:
+  cerebro:
+    build: .
+    image: digitaliza/cerebro:latest
+    container_name: cerebro
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /app/database/data/database.sqlite
+      LOG_CHANNEL: stderr          # logs saem no "docker compose logs"
+    volumes:
+      - cerebro_db:/app/database/data       # banco SQLite
+      - cerebro_storage:/app/storage        # imagens, sessões, cache, logs
+    # Sem "ports": ninguém de fora fala direto com o container.
+    # Para testar no PC, descomente (e só no PC):
+    # ports:
+    #   - "127.0.0.1:8000:8000"
+    networks:
+      default: {}
+      digitaliza:
+        aliases: [cerebro]   # o nome que o cloudflared e o n8n usam
+    # Endurecimento: sem privilégios extras.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    mem_limit: 512m
+    cpus: 1.0
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  cerebro_db:
+  cerebro_storage:
+
+networks:
+  digitaliza:
+    external: true
+    name: ${REDE_DIGITALIZA:-digitaliza_default}
