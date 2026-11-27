@@ -170,3 +170,51 @@ Artisan::command('cerebro:importar {cliente} {url} {--token=} {--tipo=imovel} {-
         $this->warn($aviso);
     }
 })->purpose('Importa produtos de uma API JSON para o catálogo de um cliente');
+
+/*
+ | Troca a senha de um usuário. A senha é digitada às cegas no terminal e nunca aparece
+ | em tela, log ou auditoria. Também derruba o "lembrar de mim" dele.
+ |   php artisan cerebro:senha              (lista os usuários e pergunta qual)
+ |   php artisan cerebro:senha bs@digitaliza.com.br
+ */
+Artisan::command('cerebro:senha {email?}', function (?string $email = null) {
+    $users = \App\Models\User::orderBy('role')->orderBy('email')->get(['id', 'name', 'email', 'role']);
+    if ($users->isEmpty()) {
+        $this->error('Nenhum usuário cadastrado. Rode php artisan migrate --seed antes.');
+
+        return 1;
+    }
+
+    if (! $email) {
+        $email = $this->choice('Trocar a senha de quem?', $users->map(fn ($u) => $u->email)->all());
+    }
+
+    $user = \App\Models\User::where('email', $email)->first();
+    if (! $user) {
+        $this->error("Usuário não encontrado: {$email}");
+
+        return 1;
+    }
+
+    $senha = (string) $this->secret('Senha nova (mínimo 10 caracteres; não aparece enquanto digita)');
+    if (mb_strlen($senha) < 10) {
+        $this->error('Senha curta. Use pelo menos 10 caracteres.');
+
+        return 1;
+    }
+    if ($senha !== (string) $this->secret('Repita a senha')) {
+        $this->error('As senhas não batem. Nada foi alterado.');
+
+        return 1;
+    }
+
+    $user->forceFill([
+        'password' => $senha,
+        'remember_token' => \Illuminate\Support\Str::random(60),
+    ])->save();
+
+    \App\Support\Audit::log('senha_trocada', $user->tenant_id, ['usuario' => $user->email]);
+    $this->info("Senha de {$user->email} trocada. O \"lembrar de mim\" antigo parou de funcionar.");
+
+    return 0;
+})->purpose('Troca a senha de um usuário sem mostrar a senha');
