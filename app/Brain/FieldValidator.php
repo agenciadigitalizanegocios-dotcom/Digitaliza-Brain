@@ -3,11 +3,9 @@
 namespace App\Brain;
 
 use App\Fields\FieldTypes;
-use App\Fields\ImageSanitizer;
+use App\Fields\ImageStore;
 use App\Support\CurrentTenant;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -72,32 +70,8 @@ final class FieldValidator
         $file = $request->file('fields.'.$field['key']);
 
         if ($file) {
-            $tenantId = app(CurrentTenant::class)->id() ?? 0;
-            $ext = strtolower($file->guessExtension() ?: $file->getClientOriginalExtension());
-            $ext = $ext === 'jpeg' ? 'jpg' : $ext;
-            $disk = Storage::disk('public');
-            $dir = "tenants/{$tenantId}";
-
-            // Regrava sem EXIF (GPS), com rotação certa e tamanho razoável. Sem GD, usa o original.
-            [$binary] = ImageSanitizer::clean($file, $ext) ?? [file_get_contents($file->getRealPath())];
-
-            // Cota de espaço por cliente.
-            $quota = (float) config('cerebro.limits.images_mb', 200) * 1024 * 1024;
-            if ($quota > 0) {
-                $used = array_sum(array_map(fn ($f) => $disk->size($f), $disk->files($dir)));
-                if ($used + strlen($binary) > $quota) {
-                    throw ValidationException::withMessages(['fields.'.$field['key'] => sprintf(
-                        'O espaço de imagens deste cliente acabou (limite de %s MB). Remova imagens que não usa mais.',
-                        rtrim(rtrim(number_format($quota / 1024 / 1024, 1, ',', ''), '0'), ',')
-                    )]);
-                }
-            }
-
-            // Nome aleatório: a URL é pública (o n8n precisa dela para mandar a foto no WhatsApp).
-            $path = $dir.'/'.Str::random(40).'.'.$ext;
-            $disk->put($path, $binary);
-
-            return $path;
+            // Limpa (sem EXIF/GPS), confere a cota e grava com nome aleatório.
+            return ImageStore::store($file, app(CurrentTenant::class)->id() ?? 0, 'fields.'.$field['key']);
         }
 
         if ($request->boolean('remove.'.$field['key'])) {

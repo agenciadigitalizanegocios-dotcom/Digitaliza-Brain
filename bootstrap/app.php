@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AuthenticateTenantToken;
 use App\Http\Middleware\EnsureAdmin;
+use App\Http\Middleware\EnsureModule;
 use App\Http\Middleware\InternalApiOnly;
 use App\Http\Middleware\ReadOnlyForAgents;
 use App\Http\Middleware\SecurityHeaders;
@@ -24,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.token' => AuthenticateTenantToken::class,
             'internal' => InternalApiOnly::class,
             'readonly.agents' => ReadOnlyForAgents::class,
+            'module' => EnsureModule::class,
         ]);
 
         $middleware->append(SecurityHeaders::class);

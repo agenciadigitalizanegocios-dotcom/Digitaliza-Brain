@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AuditController;
+use App\Http\Controllers\Admin\CatalogTypeController;
 use App\Http\Controllers\Admin\StructureController;
 use App\Http\Controllers\Admin\TemplateController;
 use App\Http\Controllers\Admin\TenantController;
@@ -8,7 +9,25 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\BrainController;
 use App\Http\Controllers\BrainItemController;
 use App\Http\Controllers\BrainVersionController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\VitrineController;
+use App\Http\Controllers\VitrineSettingsController;
 use Illuminate\Support\Facades\Route;
+
+// Vitrine pública. Com VITRINE_HOST: https://vitrine.../{slug}. Sempre também em /v/{slug}.
+$vitrine = function () {
+    Route::get('/{slug}', [VitrineController::class, 'index'])->name('index');
+    Route::get('/{slug}/{product}', [VitrineController::class, 'show'])->name('show');
+};
+$slugPattern = '[a-z0-9]+(?:-[a-z0-9]+)*';
+if ($host = config('cerebro.vitrine_host')) {
+    Route::domain(preg_replace('#^https?://#', '', rtrim($host, '/')))
+        ->middleware('throttle:120,1')->where(['slug' => $slugPattern])->name('vitrine.host.')->group(function () use ($vitrine) {
+            Route::get('/', [VitrineController::class, 'home'])->name('home');
+            $vitrine();
+        });
+}
+Route::prefix('v')->middleware('throttle:120,1')->where(['slug' => $slugPattern])->name('vitrine.')->group($vitrine);
 
 Route::redirect('/', '/cerebro');
 
@@ -18,6 +37,22 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth')->name('logout');
+
+// Catálogo do cliente (módulo). Vem antes de /cerebro/{tab}, senão "produtos" vira nome de aba.
+Route::middleware(['auth', 'tenant', 'readonly.agents', 'module:catalogo'])->prefix('cerebro')->group(function () {
+    Route::get('/produtos', [ProductController::class, 'index'])->name('products.index');
+    Route::get('/produtos/novo/{type}', [ProductController::class, 'create'])->name('products.create');
+    Route::post('/produtos/novo/{type}', [ProductController::class, 'store'])->name('products.store');
+    Route::get('/produtos/{product}', [ProductController::class, 'edit'])->whereNumber('product')->name('products.edit');
+    Route::put('/produtos/{product}', [ProductController::class, 'update'])->whereNumber('product')->name('products.update');
+    Route::patch('/produtos/{product}/publicar', [ProductController::class, 'toggle'])->whereNumber('product')->name('products.toggle');
+    Route::delete('/produtos/{product}', [ProductController::class, 'destroy'])->whereNumber('product')->name('products.destroy');
+    Route::delete('/produtos/{product}/fotos/{photo}', [ProductController::class, 'destroyPhoto'])->whereNumber(['product', 'photo'])->name('products.photos.destroy');
+    Route::patch('/produtos/{product}/fotos/{photo}/{direction}', [ProductController::class, 'movePhoto'])
+        ->whereNumber(['product', 'photo'])->whereIn('direction', ['subir', 'descer'])->name('products.photos.move');
+    Route::get('/vitrine', [VitrineSettingsController::class, 'edit'])->name('vitrine.settings');
+    Route::put('/vitrine', [VitrineSettingsController::class, 'update'])->name('vitrine.settings.update');
+});
 
 // Painel do cliente: cada imobiliária só vê o próprio cérebro.
 Route::middleware(['auth', 'tenant', 'readonly.agents'])->prefix('cerebro')->name('brain.')->group(function () {
@@ -51,6 +86,18 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/clientes/{tenant}/atualizacao/dispensar', [TenantController::class, 'dismissUpdate'])->name('tenants.update.dismiss');
     Route::post('/sair-do-cliente', [TenantController::class, 'leave'])->name('tenants.leave');
     Route::get('/registro', AuditController::class)->name('audit');
+
+    // Tipos de produto do catálogo de um cliente.
+    Route::prefix('/clientes/{tenant}/catalogo')->name('catalog.')->controller(CatalogTypeController::class)->group(function () {
+        Route::get('/', 'show')->name('show');
+        Route::post('/tipos', 'storeType')->name('types.store');
+        Route::put('/tipos/{type}', 'updateType')->name('types.update');
+        Route::patch('/tipos/{type}/arquivar', 'archiveType')->name('types.archive');
+        Route::post('/tipos/{type}/campos', 'storeField')->name('fields.store');
+        Route::put('/tipos/{type}/campos/{field}', 'updateField')->name('fields.update');
+        Route::patch('/tipos/{type}/campos/{field}/arquivar', 'archiveField')->name('fields.archive');
+        Route::patch('/tipos/{type}/campos/{field}/mover/{direction}', 'moveField')->whereIn('direction', ['subir', 'descer'])->name('fields.move');
+    });
 
     // Modelos de nicho.
     Route::get('/modelos', [TemplateController::class, 'index'])->name('templates.index');

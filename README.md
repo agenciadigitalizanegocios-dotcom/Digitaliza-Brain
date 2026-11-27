@@ -66,6 +66,49 @@ Agora as abas e os campos não ficam mais no código: cada cliente tem a **estru
 3. Rebuild do container: `docker compose up -d --build cerebro`. A migração roda sozinha e liga todos os clientes ao modelo Imobiliária, sem mexer no conteúdo.
 4. Para voltar: restaure o arquivo SQLite do backup e a imagem anterior do container.
 
+## Parte 2: catálogo de produtos e vitrine
+
+Módulo **Catálogo** (ligar em Admin → Clientes → Módulos). Serve para imóvel, óculos, roupa, qualquer coisa: cada **tipo de produto** tem seus campos (texto, número, dinheiro, opções, sim/não, imagem).
+
+- **Tipos e campos**: só a Digitaliza edita, em Admin → Clientes → **Catálogo**. Para cada campo dá para escolher se aparece na vitrine (`público`) e se vai para o robô. O modelo Imobiliária já cria o tipo **Imóvel** (aluguel, condomínio, IPTU, quartos, vagas, bairro, aceita pet...). O endereço completo não sai na vitrine nem para o robô.
+- **Produtos**: o cliente cadastra em **Produtos** (até 20 fotos, arrastar para ordenar; a primeira é a capa). Situação: Disponível / Reservado / Alugado (indisponível some da vitrine). Corretor só visualiza.
+- **Vitrine**: `APP_URL/v/{cliente}` (ex.: `/v/bs-imoveis`), com busca, filtros, galeria e botão "Tenho interesse" no WhatsApp. Logo, cor, WhatsApp e textos em **Vitrine** no painel.
+- **Domínio próprio**: coloque `VITRINE_HOST=vitrine.digitalizanegocio.com.br` no `.env` e crie no Cloudflare Tunnel o hostname público `vitrine.digitalizanegocio.com.br` → `http://cerebro:8000`. Endereço fica `vitrine.digitalizanegocio.com.br/bs-imoveis`. Depois rode `php artisan config:cache` (o `start.sh` já faz ao reiniciar).
+
+### API de busca para o robô (n8n)
+
+Mesmo token Bearer do `/brain`, só pela rede interna (`http://cerebro:8000/api/v1`):
+
+| Rota | Para quê |
+|---|---|
+| `GET /products/types` | Tipos e filtros de cada um (para montar a ferramenta da IA) |
+| `GET /products?produto=imovel&bairro=Centro&aluguel_max=1500&quartos_min=2&aceita_pet=1&limite=5` | Busca |
+| `GET /products/{id}` | Um produto |
+
+Regra dos filtros: texto/opção = `campo=valor`; número e dinheiro = `campo_min` / `campo_max` (dinheiro em reais); sim/não = `campo=1`; `q` = texto livre. Cada item volta com `summary` (resumo pronto para a IA), `price_text` e `url` (link da vitrine para mandar ao cliente). Detalhes no Swagger (`docs/openapi.yaml`).
+
+### Trocar o site antigo da BS
+
+1. Ligar o módulo Catálogo na BS.
+2. Testar a importação sem gravar (o importador lê a API do site atual, segue a paginação e baixa as fotos):
+   ```bash
+   docker compose exec cerebro php artisan cerebro:importar bs-imoveis http://digitaliza-imoveis-1:PORTA/api/ROTA-DOS-IMOVEIS --token=TOKEN_DO_SITE --dry-run
+   ```
+   Ele mostra quantos itens achou e como ficou o primeiro. Se algum nome de campo for diferente, passe `--mapa=mapa.json` (veja `DEFAULT_MAP` em `app/Catalog/ProductImporter.php`).
+3. Rodar sem `--dry-run`. Pode rodar de novo: ele atualiza pelo id do site antigo, não duplica (fotos só baixam de novo com `--fotos-de-novo`).
+4. Conferir a vitrine e os preços.
+5. No n8n, trocar a ferramenta de busca de imóveis para `GET http://cerebro:8000/api/v1/products?produto=imovel...`.
+6. Só depois de o robô estar usando a API nova, desligar o container `digitaliza-imoveis-1`.
+
+## Segurança do catálogo (revisão de 26/11/2026)
+
+- Campo interno (ex.: endereço) não pode ser título, preço, filtro nem aparecer no cartão. O importador nunca usa o endereço como título.
+- Chaves reservadas: `q`, `produto`, `ordem`, `limite`, `page` e nada terminando em `_min`/`_max`. O tipo de produto na vitrine e na API é `?produto=` (o `tipo` é campo do Imóvel).
+- Limites: 25 campos ativos (40 no total), 4 no cartão, 6 filtros, 30 opções por lista, 5 tipos de produto, 20 fotos por produto e 6 por envio (servidor aceita 40 MB por envio).
+- Importador: o token só vai para o endereço informado; não segue redirecionamento; foto até 5 MB e nunca da rede interna (a não ser o próprio servidor da API).
+- Vitrine nova fica fora do Google (`noindex`) até desmarcar "Vitrine em montagem" na tela Vitrine.
+- Registro: cadastrar, publicar/tirar e excluir produto e mudanças na vitrine.
+
 ## Segurança (revisão da Parte 1)
 
 | O quê | Como ficou |
@@ -188,7 +231,8 @@ Resposta:
 - **Regras da estrutura** (chaves, núcleo, troca de tipo): `app/Brain/StructureValidator.php`.
 - **Atualização do modelo** (comparação em três vias): `app/Brain/TemplateDiff.php` e `app/Brain/TemplateApplier.php`.
 - **Histórico**: `app/Brain/Versioner.php` (guarda as últimas 300 versões por cliente).
+- **Catálogo**: busca e filtros em `app/Catalog/Catalog.php`, regras dos tipos em `app/Catalog/ProductTypeValidator.php`, importador em `app/Catalog/ProductImporter.php`.
 
 ## Próximas etapas (do plano)
 
-Identificar o cliente pelo `phone_number_id` (`GET /tenants/by-phone/...`), imóveis com `tenant_id`, agenda, "Testar meu robô", passagem para humano no Chatwoot. Para mais de 2 clientes, trocar SQLite por PostgreSQL/MySQL no `.env`.
+Identificar o cliente pelo `phone_number_id` (`GET /tenants/by-phone/...`), agenda de visitas (Parte 3), "Testar meu robô", passagem para humano no Chatwoot. Para mais de 2 clientes, trocar SQLite por PostgreSQL/MySQL no `.env`.

@@ -9,6 +9,7 @@ use App\Brain\StructureValidator;
 use App\Brain\TemplateApplier;
 use App\Brain\Templates;
 use App\Brain\Versioner;
+use App\Fields\FieldDefinitions;
 use App\Fields\FieldTypes;
 use App\Http\Controllers\Controller;
 use App\Models\BrainSetting;
@@ -60,7 +61,7 @@ class StructureController extends Controller
             $titleField = null;
             if ($data['type'] === 'items') {
                 // Toda lista precisa de um campo título.
-                $fields[] = self::newField('titulo', 'Título', 'text', true);
+                $fields[] = FieldDefinitions::make('titulo', 'Título', 'text', true);
                 $titleField = 'titulo';
             }
             $s['tabs'][] = [
@@ -166,7 +167,7 @@ class StructureController extends Controller
 
     public function storeField(Request $request, string $kind, int $id, string $tab)
     {
-        $data = $this->validateField($request);
+        $data = FieldDefinitions::validate($request);
 
         return $this->mutate($kind, $id, function (array $s) use ($data, $tab) {
             $taken = [];
@@ -177,8 +178,8 @@ class StructureController extends Controller
                 }
             }
             $key = StructureValidator::makeKey($data['label'], $taken);
-            $field = self::newField($key, $data['label'], $data['type'], (bool) ($data['required'] ?? false));
-            $field = self::fillField($field, $data);
+            $field = FieldDefinitions::make($key, $data['label'], $data['type'], (bool) ($data['required'] ?? false));
+            $field = FieldDefinitions::fill($field, $data);
 
             foreach ($s['tabs'] as &$t) {
                 if ($t['key'] === $tab) {
@@ -193,7 +194,7 @@ class StructureController extends Controller
 
     public function updateField(Request $request, string $kind, int $id, string $tab, string $field)
     {
-        $data = $this->validateField($request);
+        $data = FieldDefinitions::validate($request);
 
         return $this->mutate($kind, $id, function (array $s) use ($data, $tab, $field) {
             $found = false;
@@ -203,7 +204,7 @@ class StructureController extends Controller
                 }
                 foreach ($t['fields'] as &$f) {
                     if ($f['key'] === $field) {
-                        $f = self::fillField($f, $data);
+                        $f = FieldDefinitions::fill($f, $data);
                         $found = true;
                     }
                 }
@@ -348,74 +349,6 @@ class StructureController extends Controller
 
         return redirect()->route('admin.structure.show', array_filter([$kind, $id, 'aba' => $tab]))
             ->with('ok', 'Estrutura salva.'.($owner instanceof BrainTemplate ? ' Os clientes deste modelo vão ver “atualização pendente”.' : ''));
-    }
-
-    private function validateField(Request $request): array
-    {
-        return $request->validate([
-            'label' => ['required', 'string', 'max:80'],
-            'type' => ['required', Rule::in(array_keys(FieldTypes::TYPES))],
-            'required' => ['nullable', 'boolean'],
-            'placeholder' => ['nullable', 'string', 'max:300'],
-            'help' => ['nullable', 'string', 'max:300'],
-            'options' => ['nullable', 'string', 'max:3000'],
-            'archived_options' => ['nullable', 'string', 'max:500'],
-            'default' => ['nullable', 'boolean'],
-            'min' => ['nullable', 'integer'],
-            'max' => ['nullable', 'integer'],
-            'send_to_ai' => ['nullable', 'boolean'],
-        ], [], ['label' => 'nome do campo']);
-    }
-
-    private static function newField(string $key, string $label, string $type, bool $required): array
-    {
-        return [
-            'key' => $key, 'label' => $label, 'type' => $type, 'required' => $required,
-            'placeholder' => '', 'help' => '', 'options' => $type === 'select' ? [] : null, 'archived_options' => [],
-            'default' => null, 'min' => null, 'max' => null, 'send_to_ai' => $type !== 'image', 'archived' => false,
-        ];
-    }
-
-    /**
-     * Opções do select: uma por linha, "chave: Rótulo" ou só "Rótulo" (a chave é gerada).
-     * As chaves que já existiam nunca mudam (o validador recusa se sumirem).
-     */
-    private static function fillField(array $field, array $data): array
-    {
-        $field['label'] = $data['label'];
-        $field['type'] = $data['type'];
-        $field['required'] = (bool) ($data['required'] ?? false);
-        $field['placeholder'] = (string) ($data['placeholder'] ?? '');
-        $field['help'] = (string) ($data['help'] ?? '');
-        $field['min'] = isset($data['min']) ? (int) $data['min'] : null;
-        $field['max'] = isset($data['max']) ? (int) $data['max'] : null;
-        $field['send_to_ai'] = $data['type'] === 'image' ? false : (bool) ($data['send_to_ai'] ?? false);
-        $field['default'] = $data['type'] === 'checkbox' ? (bool) ($data['default'] ?? false) : null;
-
-        if ($data['type'] === 'select') {
-            $options = $field['options'] ?? [];
-            foreach (preg_split('/\R/', (string) ($data['options'] ?? '')) as $line) {
-                $line = trim($line);
-                if ($line === '') {
-                    continue;
-                }
-                if (preg_match('/^([a-z][a-z0-9_]{0,39})\s*:\s*(.+)$/', $line, $m)) {
-                    $options[$m[1]] = trim($m[2]);
-                } elseif (! in_array($line, $options, true)) {
-                    $options[StructureValidator::makeKey($line, array_map('strval', array_keys($options)), 'opcao')] = $line;
-                }
-            }
-            $field['options'] = $options;
-            $field['archived_options'] = array_values(array_intersect(
-                array_keys($options),
-                array_filter(array_map('trim', explode(',', (string) ($data['archived_options'] ?? ''))))
-            ));
-        } else {
-            $field['options'] = null;
-            $field['archived_options'] = [];
-        }
-
-        return $field;
     }
 
     private static function moveIn(array $list, string $key, string $direction): array

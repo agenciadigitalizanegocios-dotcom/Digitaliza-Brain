@@ -14,7 +14,7 @@ COPY . .
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
 
 # Fotos de até 5 MB (o padrão do PHP é 2 MB).
-RUN printf "upload_max_filesize=6M\npost_max_size=8M\n" > /usr/local/etc/php/conf.d/uploads.ini
+RUN printf "upload_max_filesize=6M\npost_max_size=40M\n" > /usr/local/etc/php/conf.d/uploads.ini
 
 # Atende várias requisições ao mesmo tempo (painel + n8n).
 ENV PHP_CLI_SERVER_WORKERS=4

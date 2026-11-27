@@ -67,6 +67,7 @@
                 $('[data-f="type"]', ff).disabled = false;
                 setF('required', f.required);
                 setF('send_to_ai', f.send_to_ai === undefined ? true : f.send_to_ai);
+                setF('public', f.public === undefined ? true : f.public);
                 setF('placeholder', f.placeholder);
                 setF('help', f.help);
                 setF('min', f.min);
