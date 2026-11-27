@@ -76,21 +76,43 @@
                                 </form>
                             </td>
                         </tr>
-                        <dialog id="mod-{{ $tenant->id }}" class="modal">
-                            <form method="post" action="{{ route('admin.tenants.modules', $tenant) }}">
-                                @csrf @method('PATCH')
-                                <div class="modal-head"><h2>Módulos · {{ $tenant->name }}</h2><button type="button" class="btn ghost icon" data-close>✕</button></div>
-                                <p class="help">Ferramentas que a IA pode usar. Por enquanto só liga/desliga: o Catálogo e a Agenda chegam nas próximas partes.</p>
-                                @foreach (\App\Brain\Modules::ALL as $mk => $ml)
-                                    <label class="check"><input type="hidden" name="modules[{{ $mk }}]" value="0"><input type="checkbox" name="modules[{{ $mk }}]" value="1" @checked($tenant->moduleFlags()[$mk])> {{ $ml }} <span class="badge">em breve</span></label>
-                                @endforeach
-                                <div class="actions"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn primary">Salvar</button></div>
-                            </form>
-                        </dialog>
                     @endforeach
                 </tbody>
             </table>
         </div>
+
+        {{-- Fora da tabela: um <dialog>/<form> dentro do <tbody> é HTML inválido e o navegador esvazia o form. --}}
+        @foreach ($tenants as $tenant)
+            @php $flags = $tenant->moduleFlags(); @endphp
+            <dialog id="mod-{{ $tenant->id }}" class="modal">
+                <form method="post" action="{{ route('admin.tenants.modules', $tenant) }}">
+                    @csrf @method('PATCH')
+                    <div class="modal-head">
+                        <h2>Módulos · {{ $tenant->name }}</h2>
+                        <button type="button" class="btn ghost icon" data-close aria-label="Fechar">✕</button>
+                    </div>
+                    <p class="help">Ferramentas extras deste cliente. Vale na próxima mensagem do robô.</p>
+                    <div class="module-list">
+                        @foreach (\App\Brain\Modules::ALL as $mk => $ml)
+                            @php $ready = in_array($mk, \App\Brain\Modules::READY, true); @endphp
+                            <label class="module-option {{ $ready ? '' : 'soon' }}">
+                                <input type="hidden" name="modules[{{ $mk }}]" value="0">
+                                <input type="checkbox" name="modules[{{ $mk }}]" value="1" @checked($flags[$mk]) @disabled(! $ready && ! $flags[$mk])>
+                                <span class="module-text">
+                                    <strong>{{ $ml }}</strong>
+                                    <span class="help">{{ \App\Brain\Modules::DESCRIPTIONS[$mk] ?? '' }}</span>
+                                </span>
+                                @unless ($ready)<span class="badge">em breve</span>@endunless
+                            </label>
+                        @endforeach
+                    </div>
+                    <div class="actions">
+                        <button type="button" class="btn ghost" data-close>Cancelar</button>
+                        <button class="btn primary">Salvar</button>
+                    </div>
+                </form>
+            </dialog>
+        @endforeach
     @endif
 
     <dialog id="new-tenant" class="modal" data-reopen="{{ $errors->any() ? '1' : '' }}">
