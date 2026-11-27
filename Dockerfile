@@ -10,8 +10,8 @@ RUN apt-get update \
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# PHP: fotos de até 5 MB e sem expor a versão do PHP.
-RUN printf "upload_max_filesize=6M\npost_max_size=8M\nexpose_php=Off\n" > /usr/local/etc/php/conf.d/cerebro.ini \
+# PHP: fotos de até 5 MB cada, até 6 por envio (40 MB) e sem expor a versão do PHP.
+RUN printf "upload_max_filesize=6M\npost_max_size=40M\nexpose_php=Off\n" > /usr/local/etc/php/conf.d/cerebro.ini \
     && cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 
 # Apache:
