@@ -282,3 +282,13 @@ fieldset.contents:disabled input, fieldset.contents:disabled textarea, fieldset.
 .danger-zone { margin-top: 18px; text-align: right; }
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 12px; }
 .color-input { width: 80px !important; height: 42px; padding: 2px !important; }
+
+/* Modal de módulos (Admin → Clientes) */
+.module-list { display: flex; flex-direction: column; gap: 10px; }
+.module-option { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; transition: border-color .15s, background .15s; }
+.module-option:hover { border-color: var(--primary); }
+.module-option:has(input[type=checkbox]:checked) { border-color: var(--primary); background: var(--primary-soft); }
+.module-option input[type=checkbox] { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--primary); }
+.module-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.module-option.soon { cursor: default; opacity: .65; }
+.module-option.soon:hover { border-color: var(--line); }
